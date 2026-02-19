@@ -1,0 +1,7 @@
+{
+  "name": "ThaiRadius - 50km Interactive Map",
+  "description": "An interactive map of Thailand allowing users to place 50km radius markers and analyze the regions using Gemini AI integration.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
