@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [editingPinId, setEditingPinId] = useState<string | null>(null);
   const [editingPinName, setEditingPinName] = useState("");
   const [showPanel, setShowPanel] = useState(false);
+  const [showLegend, setShowLegend] = useState(true);
 
   // Persist state to localStorage
   React.useEffect(() => { localStorage.setItem('thaimap_markers', JSON.stringify(markers)); }, [markers]);
@@ -466,37 +467,48 @@ const App: React.FC = () => {
           <Menu className="w-5 h-5 text-indigo-700" />
         </button>
         
-        <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
-          <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 text-[10px] space-y-2 pointer-events-none">
-            <h4 className="font-black text-slate-800 uppercase tracking-tighter mb-2 border-b border-slate-100 pb-1">Legend</h4>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-indigo-600 shadow-sm" />
-              <span className="font-bold text-slate-600">Hub Center (50km Inner)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full border border-indigo-400 bg-indigo-50/50" />
-              <span className="font-bold text-slate-600">Extended Range (100km Outer)</span>
-            </div>
-            <hr className="my-1 border-slate-100" />
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
-              <span className="font-bold text-slate-600">Status: Covered (50km)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-400" />
-              <span className="font-bold text-slate-600">Status: Near (100km)</span>
-            </div>
-          </div>
+        <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 items-end">
+          <button
+            onClick={() => setShowLegend(v => !v)}
+            className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-xl border border-white/20 text-[10px] font-bold text-slate-600 hover:text-indigo-700 transition-colors"
+          >
+            {showLegend ? 'Hide Legend' : 'Show Legend'}
+          </button>
 
-          <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 text-[10px] space-y-2 pointer-events-none">
-            <h4 className="font-black text-slate-800 uppercase tracking-tighter mb-2 border-b border-slate-100 pb-1">Categories</h4>
-            {Object.entries(CATEGORY_MAP).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: val.color }} />
-                <span className="font-bold text-slate-600">{val.label}</span>
+          {showLegend && (
+            <>
+              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 text-[10px] space-y-2 pointer-events-none">
+                <h4 className="font-black text-slate-800 uppercase tracking-tighter mb-2 border-b border-slate-100 pb-1">Legend</h4>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-indigo-600 shadow-sm" />
+                  <span className="font-bold text-slate-600">Hub Center (50km Inner)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full border border-indigo-400 bg-indigo-50/50" />
+                  <span className="font-bold text-slate-600">Extended Range (100km Outer)</span>
+                </div>
+                <hr className="my-1 border-slate-100" />
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                  <span className="font-bold text-slate-600">Status: Covered (50km)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-amber-400" />
+                  <span className="font-bold text-slate-600">Status: Near (100km)</span>
+                </div>
               </div>
-            ))}
-          </div>
+
+              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 text-[10px] space-y-2 pointer-events-none">
+                <h4 className="font-black text-slate-800 uppercase tracking-tighter mb-2 border-b border-slate-100 pb-1">Categories</h4>
+                {Object.entries(CATEGORY_MAP).map(([key, val]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: val.color }} />
+                    <span className="font-bold text-slate-600">{val.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </main>
 
