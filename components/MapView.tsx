@@ -43,6 +43,8 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
+    let mounted = true;
+
     const map = L.map(mapContainerRef.current, {
       center: [13.7367, 100.5232],
       zoom: 6,
@@ -74,6 +76,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
     fetch('https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json')
       .then(res => res.json())
       .then(data => {
+        if (!mounted) return;
         L.geoJSON(data, {
           style: (feature) => {
             const bounds = L.geoJSON(feature).getBounds();
@@ -100,6 +103,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
     mapRef.current = map;
 
     return () => {
+      mounted = false;
       map.remove();
       mapRef.current = null;
     };
