@@ -14,8 +14,9 @@ export interface PointMarker {
   lat: number;
   lng: number;
   color: string;
-  label: string; 
+  label: string;
   province?: string;
+  customLabel?: boolean; // true when label was manually set by user
   category: PinCategory;
   coverageStatus?: 'covered' | 'near' | 'none'; // covered <= 50km, near <= 100km
   distanceToNearest?: number; // in km

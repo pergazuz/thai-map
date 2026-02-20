@@ -2,10 +2,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import MapView from './components/MapView';
 import { CircleMarker, PointMarker, PinCategory } from './types';
-import { analyzeAreas, batchIdentifyProvinces } from './services/geminiService';
-import { 
-  MapPin, Info, Layers, Loader2, Upload, Trash2, 
-  CheckCircle2, XCircle, Search, ClipboardList, Download, 
+import { batchIdentifyProvinces } from './services/geminiService';
+import {
+  MapPin, Info, Layers, Loader2, Upload, Trash2,
+  ClipboardList, Download,
   Tag, Compass, Edit2, Check, X, FileText
 } from 'lucide-react';
 
@@ -16,19 +16,29 @@ const CATEGORY_MAP: Record<PinCategory, { label: string; color: string }> = {
   'Pending': { label: 'Site รอสำรวจ', color: '#2563eb' }  // Blue-600
 };
 
+const load = <T,>(key: string, fallback: T): T => {
+  try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback; } catch { return fallback; }
+};
+
 const App: React.FC = () => {
-  const [markers, setMarkers] = useState<CircleMarker[]>([]);
-  const [bulkPins, setBulkPins] = useState<PointMarker[]>([]);
+  const [markers, setMarkers] = useState<CircleMarker[]>(() => load('thaimap_markers', []));
+  const [bulkPins, setBulkPins] = useState<PointMarker[]>(() => load('thaimap_pins', []));
   const [importText, setImportText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<PinCategory>('Existing');
   const [nextRadiusName, setNextRadiusName] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [analysis, setAnalysis] = useState<string | null>(null);
   
   // State for renaming zones
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [editingZoneName, setEditingZoneName] = useState("");
+
+  // State for renaming pins
+  const [editingPinId, setEditingPinId] = useState<string | null>(null);
+  const [editingPinName, setEditingPinName] = useState("");
+
+  // Persist state to localStorage
+  React.useEffect(() => { localStorage.setItem('thaimap_markers', JSON.stringify(markers)); }, [markers]);
+  React.useEffect(() => { localStorage.setItem('thaimap_pins', JSON.stringify(bulkPins)); }, [bulkPins]);
 
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3;
@@ -70,7 +80,7 @@ const App: React.FC = () => {
       }
       
       let finalLabel = pin.label;
-      if (pin.province) {
+      if (pin.province && !pin.customLabel) {
         const currentCount = provinceCounts.get(pin.province) || 0;
         finalLabel = currentCount === 0 ? pin.province : `${pin.province} ${currentCount + 1}`;
         provinceCounts.set(pin.province, currentCount + 1);
@@ -116,39 +126,51 @@ const App: React.FC = () => {
 
   const handleImportBulk = async () => {
     const lines = importText.split('\n');
-    const newPointsRaw: {lat: number, lng: number}[] = [];
-    
+    const newPointsRaw: { lat: number; lng: number; name?: string }[] = [];
+
     lines.forEach((line) => {
       if (!line.trim()) return;
       const urlMatch = line.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       const latLngMatch = line.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-      let lat, lng;
+      let lat: number | undefined, lng: number | undefined, name: string | undefined;
+
       if (urlMatch) {
         lat = parseFloat(urlMatch[1]);
         lng = parseFloat(urlMatch[2]);
       } else if (latLngMatch) {
         lat = parseFloat(latLngMatch[1]);
         lng = parseFloat(latLngMatch[2]);
+        const before = line.substring(0, latLngMatch.index!).trim().replace(/,\s*$/, '').trim();
+        if (before) name = before;
       }
+
       if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
-        newPointsRaw.push({ lat, lng });
+        newPointsRaw.push({ lat, lng, name });
       }
     });
 
     if (newPointsRaw.length === 0) return;
 
+    // Only call the province service for points that don't have a custom name
+    const pointsNeedingProvince = newPointsRaw.filter(p => !p.name);
     setIsGeocoding(true);
-    const provinces = await batchIdentifyProvinces(newPointsRaw);
-    
-    const finalNewPins: PointMarker[] = newPointsRaw.map((raw, idx) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      lat: raw.lat,
-      lng: raw.lng,
-      color: CATEGORY_MAP[selectedCategory].color,
-      category: selectedCategory,
-      label: provinces[idx] || `${raw.lat}, ${raw.lng}`,
-      province: provinces[idx]
-    }));
+    const provinces = await batchIdentifyProvinces(pointsNeedingProvince);
+
+    let provinceIdx = 0;
+    const finalNewPins: PointMarker[] = newPointsRaw.map((raw) => {
+      const label = raw.name || provinces[provinceIdx] || `${raw.lat}, ${raw.lng}`;
+      const province = raw.name ? undefined : provinces[provinceIdx];
+      if (!raw.name) provinceIdx++;
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        lat: raw.lat,
+        lng: raw.lng,
+        color: CATEGORY_MAP[selectedCategory].color,
+        category: selectedCategory,
+        label,
+        province,
+      };
+    });
 
     setBulkPins(prev => [...prev, ...finalNewPins]);
     setImportText("");
@@ -198,17 +220,11 @@ const App: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const handleAnalyze = async () => {
-    if (markers.length === 0) return;
-    setIsAnalyzing(true);
-    try {
-      const result = await analyzeAreas(markers);
-      setAnalysis(result);
-    } catch (error) {
-      console.error("Analysis failed:", error);
-    } finally {
-      setIsAnalyzing(false);
-    }
+  const handleRenamePin = (id: string) => {
+    if (!editingPinName.trim()) return;
+    setBulkPins(prev => prev.map(p => p.id === id ? { ...p, label: editingPinName, customLabel: true } : p));
+    setEditingPinId(null);
+    setEditingPinName("");
   };
 
   const handleRemoveRadius = (id: string) => setMarkers(prev => prev.filter(m => m.id !== id));
@@ -325,7 +341,8 @@ const App: React.FC = () => {
               </div>
               <textarea
                 className="w-full h-20 p-3 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none mb-3 bg-white"
-                placeholder="Paste coordinates (Lat,Long)..."
+                placeholder={"Paste coordinates, one per line:\n13.756, 100.501\nMy Site, 18.787, 98.993\nhttps://maps.google.com/..."}
+
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
               />
@@ -374,13 +391,34 @@ const App: React.FC = () => {
                 <div key={p.id} className="flex flex-col p-3 bg-white border border-slate-100 rounded-xl shadow-sm group hover:border-indigo-300 transition-all relative overflow-hidden">
                   <div className={`absolute top-0 left-0 w-1 h-full`} style={{ backgroundColor: p.color }} />
                   <div className="flex items-center justify-between mb-2 pl-2">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-800">{p.label}</span>
-                      <span className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">{CATEGORY_MAP[p.category].label}</span>
-                    </div>
-                    <button onClick={() => handleRemovePin(p.id)} className="text-slate-200 group-hover:text-rose-400 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {editingPinId === p.id ? (
+                      <div className="flex items-center gap-2 flex-1 mr-2">
+                        <input
+                          className="flex-1 p-1 text-[10px] font-bold border border-indigo-300 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                          value={editingPinName}
+                          onChange={(e) => setEditingPinName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleRenamePin(p.id); if (e.key === 'Escape') setEditingPinId(null); }}
+                          autoFocus
+                        />
+                        <button onClick={() => handleRenamePin(p.id)} className="text-emerald-600"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setEditingPinId(null)} className="text-rose-500"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col flex-1 overflow-hidden">
+                        <span className="text-xs font-bold text-slate-800 truncate">{p.label}</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">{CATEGORY_MAP[p.category].label}</span>
+                      </div>
+                    )}
+                    {editingPinId !== p.id && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => { setEditingPinId(p.id); setEditingPinName(p.label); }} className="text-slate-200 hover:text-indigo-500 transition-colors">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleRemovePin(p.id)} className="text-slate-200 group-hover:text-rose-400 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col pl-2 pt-1 border-t border-slate-50">
                     <div className="flex items-center justify-between mb-1">
@@ -402,25 +440,6 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          <button
-            onClick={handleAnalyze}
-            disabled={markers.length === 0 || isAnalyzing}
-            className={`w-full py-4 rounded-xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-2 ${
-              markers.length === 0 ? 'bg-slate-300' : 'bg-indigo-900 hover:bg-black'
-            }`}
-          >
-            {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-4 h-4" /> Strategic AI Report</>}
-          </button>
-
-          {analysis && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-700 relative animate-in fade-in slide-in-from-top-2">
-               <button onClick={() => setAnalysis(null)} className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 transition-colors">
-                  <XCircle className="w-4 h-4" />
-               </button>
-               <h3 className="font-bold mb-2 text-slate-900 flex items-center gap-2 uppercase tracking-widest"><Info className="w-3.5 h-3.5 text-indigo-500" /> Site Analysis</h3>
-               <div className="whitespace-pre-wrap leading-relaxed">{analysis}</div>
-            </div>
-          )}
         </div>
       </aside>
 

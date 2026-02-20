@@ -30,6 +30,11 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
+  const onMapClickRef = useRef(onMapClick);
+
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
 
   const SOUTH_WEST: L.LatLngTuple = [5.5, 97.0];
   const NORTH_EAST: L.LatLngTuple = [20.5, 106.0];
@@ -88,7 +93,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
 
     map.on('click', (e: L.LeafletMouseEvent) => {
       if (THAILAND_BOUNDS.contains(e.latlng)) {
-        onMapClick(e.latlng.lat, e.latlng.lng);
+        onMapClickRef.current(e.latlng.lat, e.latlng.lng);
       }
     });
 
@@ -174,7 +179,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
         <div class="p-2 space-y-1 min-w-[150px]">
           <div class="font-black text-xs uppercase tracking-tight" style="color: ${p.color}">${p.label}</div>
           <div class="text-[9px] text-slate-400 font-mono tracking-tighter">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>
-          
+
           <div class="text-[10px] border-t border-slate-100 pt-2 mt-1">
              <div class="flex justify-between items-center mb-1">
                 <span class="text-[9px] font-bold text-slate-300 uppercase">Status</span>
@@ -182,7 +187,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
                   ${statusText}
                 </span>
              </div>
-             {p.nearestZone && (
+             ${p.nearestZone ? `
                <div class="flex justify-between items-center pt-1">
                   <span class="text-[9px] font-bold text-slate-300 uppercase">Nearest Hub</span>
                   <div class="text-right">
@@ -190,7 +195,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, bulkPins, onMapClick }) => {
                     <div class="text-[8px] font-bold text-slate-400">${p.distanceToNearest?.toFixed(2)}km Away</div>
                   </div>
                </div>
-             )}
+             ` : ''}
           </div>
         </div>
       `);
