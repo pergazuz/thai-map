@@ -6,7 +6,7 @@ import { batchIdentifyProvinces } from './services/geminiService';
 import {
   MapPin, Info, Layers, Loader2, Upload, Trash2,
   ClipboardList, Download,
-  Tag, Compass, Edit2, Check, X, FileText
+  Tag, Compass, Edit2, Check, X, FileText, Menu
 } from 'lucide-react';
 
 const CATEGORY_MAP: Record<PinCategory, { label: string; color: string }> = {
@@ -35,6 +35,7 @@ const App: React.FC = () => {
   // State for renaming pins
   const [editingPinId, setEditingPinId] = useState<string | null>(null);
   const [editingPinName, setEditingPinName] = useState("");
+  const [showPanel, setShowPanel] = useState(false);
 
   // Persist state to localStorage
   React.useEffect(() => { localStorage.setItem('thaimap_markers', JSON.stringify(markers)); }, [markers]);
@@ -238,8 +239,19 @@ const App: React.FC = () => {
   }, [processedBulkPins]);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full font-sans text-slate-900 overflow-hidden bg-white">
-      <aside className="w-full md:w-[440px] bg-white border-r border-slate-200 flex flex-col shadow-2xl z-20 overflow-hidden">
+    <div className="flex h-screen w-full font-sans text-slate-900 overflow-hidden bg-white">
+      {/* Mobile backdrop */}
+      {showPanel && (
+        <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setShowPanel(false)} />
+      )}
+
+      <aside className={`
+        fixed inset-y-0 left-0 z-30 md:relative md:z-auto
+        w-[85vw] md:w-[440px] shrink-0
+        bg-white border-r border-slate-200 flex flex-col shadow-2xl overflow-hidden
+        transition-transform duration-300 ease-in-out
+        ${showPanel ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+      `}>
         <header className="p-6 border-b border-slate-100 bg-gradient-to-br from-indigo-950 to-indigo-800 text-white shrink-0">
           <div className="flex items-center gap-2 mb-1">
             <div className="bg-indigo-500 p-1.5 rounded-lg">
@@ -445,6 +457,14 @@ const App: React.FC = () => {
 
       <main className="flex-1 relative">
         <MapView markers={markers} bulkPins={processedBulkPins} onMapClick={handleAddRadiusMarker} />
+
+        {/* Mobile panel toggle button */}
+        <button
+          className="md:hidden absolute top-4 left-4 z-[1000] bg-white rounded-xl shadow-lg p-2.5 border border-slate-200"
+          onClick={() => setShowPanel(v => !v)}
+        >
+          <Menu className="w-5 h-5 text-indigo-700" />
+        </button>
         
         <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
           <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 text-[10px] space-y-2 pointer-events-none">
